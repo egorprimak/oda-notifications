@@ -1,0 +1,28 @@
+<script src="/web/core/oda.js"></script>
+<link rel="import" href="../notification-card/notification-card.html">
+<oda-module id="oda-notification-list">
+    <template>
+        <style>
+            :host {
+                display: block;
+            }
+        </style>
+        <div v-if="notifyList && notifyList.length">
+            <div v-for="notify in notifyList" :key="notify.oid">
+                <oda-notification-card
+                    :context-item.prop="contextItem"
+                    :notify.prop="notify"
+                ></oda-notification-card>
+            </div>
+        </div>
+    </template>
+    <script>
+        ODA({
+            is: 'oda-notification-list',
+            properties: {
+                contextItem: Object,
+                notifyList: Array,
+            },
+        })
+    </script>
+</oda-module>

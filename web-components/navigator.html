@@ -1,0 +1,276 @@
+<script src="/web/core/oda.js"></script>
+<script src="/web/lib/notifications/utils.js"></script>
+<link rel="import" href="/web/lib/app-layout/app-layout.html">
+<link rel="import" href="../../lib/structure-tree/structure-tree.html">
+<link rel="import" href="/web/core/user/lib/user-button/user-button.html">
+<!-- <link rel="import" href="/web/core/item/lib/item-node/item-node.html"> -->
+
+<link rel="import" href="/web/core/item/client/form/form.html">
+<link rel="import" href="/web/object/client/editor/editor.html">
+
+<link rel="import" href="/web/lib/scroll-box/scroll-box.html">
+<link rel="import" href="/web/lib/dx-class-grid/dx-class-grid.html">
+
+<link rel="import" href="/web/lib/notifications/notification-panel/notification-panel.html">
+
+<!--<link rel="import" href="dx-structure-tree.html">-->
+
+<oda-module id="oda-navigator" context="H:1D03A3F3B5863BB">
+  <template>
+    <div slot="top" class="horizontal" style="align-items: center; overflow: hidden">
+      <div class="flex horizontal"
+           style="justify-content: center; align-items: center; padding: 0px 16px; overflow: hidden">
+        <oda-scroll-box>
+          <oda-navigator-tab v-for="(page, i) in pages" :key="i" :size="iconSize" :page.prop="page" :index="i"
+                             class="horizontal no-flex"
+                             style="border-radius: 0; transition: .1s;"
+                             :class="{content: index === i}" @close-tab="_closeTab"
+                             @tap="showItem(page.item, page.view)"
+                             :style="{ borderBottom: `4px solid ${index === i?'#0072c4':'transparent'}`}"></oda-navigator-tab>
+        </oda-scroll-box>
+        <oda-button v-show="pages.length>1" icon="icons:close" :size="iconSize"
+                    @tap.stop="pages.splice(1); index = 0"></oda-button>
+      </div>
+      <oda-user-button :size="iconSize" style="padding: 4px;"></oda-user-button>
+    </div>
+    <div slot="left-drawer" class="vertical flex" style="overflow: hidden;">
+      <!--      <dx-structure-tree ::focused-item.prop="focusedItem" :context-item.prop="contextItem"></dx-structure-tree>-->
+      <oda-structure-tree :icon-size="iconSize + 4" ref="tree" allow-drag allow-focus :allow-search.prop="false"
+                          ::focused-node.prop="focusedItem" :context-item.prop="contextItem"></oda-structure-tree>
+    </div>
+    <div slot="main" class="vertical flex" style=" overflow: hidden">
+      <div
+          v-for="(page, i) in pages"
+          :is="page.tag"
+          :param.prop="page.param"
+          :page.prop="page"
+          :context-item.prop="page.item"
+          v-show="i === index"
+          :init-view.prop="page.view"
+          class="flex"
+          :ref="_getPageSrc(page)"
+          :src="_getPageSrc(page)"
+          style="border: none"
+          @load="_frameLoad($event, page)"
+          @param-updated="_onParamUpdated"
+      ></div>
+    </div>
+    <div slot="right-drawer" class="vertical flex" style="overflow: hidden; padding: 5px">
+      <oda-notification-panel ::right-panel-opened.prop="right.opened" :context-item.prop="notificationClass"></oda-notification-panel>
+    </div>
+  </template>
+  <script>
+    ODA({
+      is: 'oda-navigator',
+      extends: 'oda-app-layout',
+      properties: {
+        iconSize: 24,
+        focusedPageItem: {
+          type: Object,
+          get() {
+            if (this.pages.length === 0)
+              return null;
+            const i = this.pages[this.index];
+            return (i && i.item);
+          },
+        },
+        focusedItem: {
+          type: Object,
+          watch(n, o) {
+            if (n) {
+              if ((!o || n.item !== o.item) && n.item !== this._focusedItem) {
+                this.showItem(n.item);
+              }
+            } else {
+              this.index = -1;
+            }
+          },
+        },
+        _focusedItem: Object,
+        index: {
+          default: -1,
+          watch(n) {
+            this.focusedItem = this.pages[n];
+          },
+        },
+        pages: [],
+        contextItem: {
+          type: Object,
+          watch(n, o) {
+            if (o) {
+              console.log('CONTEXT ITEEEEEM', o);
+              window.removeEventListener('message', this._onmessage);
+            }
+            if (n) {
+              window.addEventListener('message', this._onmessage);
+              this.showItem(n, '', 'oda-form');
+              this.findNotificationOdaClass();
+            }
+          },
+        },
+        notificationClass: Object,
+      },
+      _frameLoad(e, page) {
+        page.window = e.target.contentWindow;
+      },
+      async _onmessage(e) {
+        if (e.data) {
+          switch (e.data.action) {
+            case 'form-close':
+              const idx = this.pages.findIndex(p => p.item.fullId === e.data.id);
+              this._closeTabFinally(idx);
+              break;
+            case 'show-item':
+              if (e.data.id) {
+                const item = await ODANT.findItem(e.data.id);
+                this.showItem(item);
+              }
+              break;
+            case 'show-view':
+              if (e.data.id && e.data.view) {
+                const id = e.data.id;
+                const viewName = e.data.view;
+                const item = await ODANT.findItem(id);
+                const view = await item.getView(viewName);
+                this.showItem(item, view);
+              }
+              break;
+          }
+        }
+      },
+      _onParamUpdated(e) {
+        if (e && (e.target.tagName === 'ODA-SEARCH')) {
+          this.$refs.tree.searchValue = e.detail.value;
+        }
+      },
+      async _closeTab(e) {
+        const idx = e.detail.value;
+        try {
+          const page = this.pages[idx];
+          if (page.tag === 'iframe') {
+            // const _page = Array.isArray(this.$refs[this._getPageSrc(page)]) ? this.$refs[this._getPageSrc(page)][0] : this.$refs[this._getPageSrc(page)];
+            page.window.postMessage({
+              action: 'close',
+              src: this._getPageSrc(page),
+              id: page.item.fullId,
+            }, this._getPageSrc(page));
+            return;
+          }
+          if (page.view && page.view.allowSave && page.item.isChanged) {
+            const ctrl = this.create('oda-form-close-confirm');
+            const buttons = [
+              {
+                label: 'Yes',
+                left: true,
+                style: { 'color': 'var(--success-color)' },
+                action: async () => {
+                  await this.page.item.save();
+                },
+              },
+              {
+                label: 'No',
+                action: async () => {
+                  page.item.reset();
+                  page.item.reset(['body', 'Root']);
+                  page.item.reload && await page.item.reload();
+                },
+              },
+            ];
+            const res = await ODA.showDialog(ctrl, { buttons, title: page.item.label, fixWidth: true });
+            await res.button.action();
+          }
+        } catch (e) {
+          return;
+        }
+        this._closeTabFinally(idx);
+      },
+      _closeTabFinally(idx) {
+        this.pages.splice(idx, 1);
+        if (this.index >= idx) this.index--;
+      },
+      _getPageSrc(page) {
+        return `${page.item.url}/~/client/form/index.html${page.view ? '?view=' + page.view.name : ''}`;
+      },
+      showView(view, tag) {
+        if (view) {
+          this._focusedItem = view.$item;
+          this.showItem(view.$item, view, tag);
+          setTimeout(() => {
+            this._focusedItem = null;
+          }, 100);
+        }
+      },
+      showItem(item, view = '', tag = 'oda-form', param = '') {
+        console.log('show item', item, view, tag, param);
+        if (item.noSelect) {
+          return;
+        }
+        this.index = this.pages.findIndex(p => {
+          return p.item === item && p.view === view;
+        });
+        if (this.index < 0) {
+          this.pages.push({ item, view, tag, param });
+          this.index = this.pages.length - 1;
+        } else {
+          this.pages[this.index].param = param;
+        }
+        if (this.left.persistent) {
+          this.left.opened = false;
+        }
+        this.render();
+      },
+      async findNotificationModule() {
+        console.log('ctx item', this.contextItem);
+        return await this.contextItem.findItem('M:' + NOTIFICATION_MODULE_ID);
+      },
+      async findNotificationOdaClass() {
+        const module = await this.findNotificationModule();
+        this.notificationClass = await module.findItem('C:' + NOTIFICATION_CLASS_ID);
+      },
+    });
+  </script>
+</oda-module>
+
+<oda-module id="oda-navigator-tab">
+  <template>
+    <style>
+      :host {
+        align-items: center;
+      }
+
+      oda-item-node {
+        margin: 2px 4px 0px 4px;
+      }
+
+      .close-btn {
+        border-radius: 50%;
+        cursor: pointer;
+      }
+
+      .close-btn:hover {
+        background-color: #eaeaea;
+      }
+    </style>
+    <oda-item-node :context-item.prop="page.item" :size="size" hide-prefix></oda-item-node>
+    <oda-button v-if="index>0" class="close-btn" icon="icons:close" :size="size * 0.75"
+                @tap.stop="fire('close-tab', index)"></oda-button>
+  </template>
+  <script>
+    ODA({
+      is: 'oda-navigator-tab',
+      extends: 'oda-button',
+      properties: {
+        page: {
+          default: {},
+          watch(e) {
+            this.icon = e.view && e.view.icon;
+          },
+        },
+        size: 22,
+        index: -1,
+      },
+    });
+  </script>
+</oda-module>
+
+

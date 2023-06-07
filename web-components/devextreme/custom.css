@@ -1,0 +1,11 @@
+.dx-datagrid-rowsview .dx-row-focused.dx-data-row > td:not(.dx-focused),
+.dx-datagrid-rowsview .dx-row-focused.dx-data-row > tr > td:not(.dx-focused),
+.dx-datagrid-rowsview .dx-row-focused.dx-data-row .dx-command-edit:not(.dx-focused) .dx-link
+{
+    background-color: rgba(51, 122, 183, .3);
+    color: #000;
+}
+
+.dx-datagrid-headers .dx-datagrid-table .dx-row > td {
+    background-color: #f3f3f3;
+}

@@ -1,0 +1,50 @@
+<script src="/web/core/oda.js"></script>
+<oda-module id="oda-notification-detail">
+    <template>
+        <style>
+            :host {
+                display: block;
+                overflow-y: auto;
+            }
+
+            .notification-detail {
+                padding: 10px;
+            }
+
+            .subject {
+                font-size: 16px;
+                padding-bottom: 25px;
+            }
+            
+            .message {
+                font-size: 13px;
+            }
+
+            .date {
+                text-align: right;
+                color: #828282;
+                font-size: 11px;
+                padding-bottom: 10px;
+            }
+        </style>
+        <div class="notification-detail">
+            <div class="date" v-if="date">
+                <div>{{date}}</div>
+                <div v-if="time">{{time}}</div>
+            </div>
+            <div class="subject">{{subject}}</div>
+            <div class="message" v-html="message"></div>
+        </div>
+    </template>
+    <script>
+        ODA({
+            is: 'oda-notification-detail',
+            properties: {
+                message: String,
+                subject: String,
+                date: String,
+                time: String,
+            },
+        })
+    </script>
+</oda-module>

@@ -1,0 +1,40 @@
+<script src="/web/core/oda.js"></script>
+<oda-module id="announcement-service">
+    <script>
+        ODA({
+            is: 'announcement-service',
+            properties: {
+                contextItem: Object,
+                announcementListComponent: Object,
+                ANNOUNCEMENT_LIST_COMPONENT_PATH: '/web/lib/notifications/announcement/announcement-list.html',
+            },
+            _addAnnouncement(data) {
+                const list = this.announcementListComponent.list;
+                if (Array.isArray(list) && list.length > 2) {
+                    list.pop();
+                }
+                this.announcementListComponent.list = [data].concat(list || []);
+            },
+            async _createAnnouncementListComponent() {
+                if (this.announcementListComponent) {
+                    return;
+                }
+
+                const navigator = document.querySelector('oda-navigator');
+                const navigatorShadow = navigator.shadowRoot;
+
+                if (!navigatorShadow) {
+                    return;
+                }
+
+                const control = await ODA.createComponent(this.ANNOUNCEMENT_LIST_COMPONENT_PATH, {
+                    list: [], 
+                    contextItem: this.contextItem
+                });
+                this.announcementListComponent = control;
+
+                navigatorShadow.appendChild(control);
+            },
+        })
+    </script>
+</oda-module>

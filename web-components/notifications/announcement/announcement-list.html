@@ -1,0 +1,48 @@
+<script src="/web/core/oda.js"></script>
+<link rel="import" href="/web/lib/notifications/announcement/announcement.html">
+<oda-module id="oda-announcement-list">
+    <template>
+        <style>
+            :host {
+                display: block;
+            }
+
+            .announcement-list {
+                display: block;
+                position: fixed;
+                z-index: 1000;
+                margin: 20px;
+                padding: 10px;
+                top: 0;
+                right: 0;
+                height: 100%;
+                max-height: 265px;
+                width: 400px;
+                /* background-color: rgba(0, 0, 0, .3); */
+                overflow: hidden;
+            }
+        </style>
+        <div class="announcement-list" id="announcementList" v-show="list.length">
+            <div v-for="item in list" :key="item.oid">
+                <oda-announcement 
+                    :context-item.prop="contextItem"
+                    :notify.prop="item.notify"
+                    :category.prop="item.category"
+                    @close="closeAnnouncement($event.detail.value)"
+                ></oda-announcement>
+            </div>
+        </div>
+    </template>
+    <script>
+        ODA({
+            is: 'oda-announcement-list',
+            properties: {
+                contextItem: Object,
+                list: [],
+            },
+            closeAnnouncement(oid) {
+                this.list = this.list.filter(i => i.notify.oid !== oid);
+            }
+        })
+    </script>
+</oda-module>

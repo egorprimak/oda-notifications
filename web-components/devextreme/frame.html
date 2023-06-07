@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>DevExtreme Component</title>
+    <link rel="stylesheet" href="lib/devextreme/css/dx.common.css">
+    <link rel="stylesheet" href="lib/devextreme/css/dx.light.css">
+    <link rel="stylesheet" href="custom.css">
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+<div id="component"></div>
+<script src="/web/lib/devextreme-quill/dx-quill.core.js"></script>
+<script src="/web/lib/devextreme-quill/dx-quill.min.js"></script>
+<link rel="stylesheet" href="/web/lib/devextreme-quill/dx-quill.core.css">
+<script src="lib/jszip.min.js"></script>
+<script src="lib/devextreme/js/dx.all.js"></script>
+<script src="lib/devextreme/js/localization/dx.messages.ru.js"></script>
+<script>
+    const componentElement = document.getElementById('component');
+
+    let instance = null;
+
+    document.addEventListener('setComponent', onSetComponent);
+    document.addEventListener('setLocalization', onSetLocalization);
+
+    function disposeInstance() {
+        if (instance) {
+            instance.dispose();
+        }
+    }
+
+    function fire(event, detail) {
+        document.dispatchEvent(new CustomEvent(event, {
+            detail,
+        }));
+    }
+
+    function onSetComponent(e) {
+        const { detail } = e;
+        const { category, name, options } = detail;
+        const componentConstructor = DevExpress[category] && DevExpress[category][name];
+        if (!componentConstructor) {
+            throw Error('Component not found');
+        }
+
+        disposeInstance();
+        instance = new componentConstructor(componentElement, options);
+        fire('initInstance', instance);
+
+//	console.log('options', options)
+//	const mousedowns = document.myEvents.filter(el => el.event === 'mousedown')
+//	console.log('myEvents', document.myEvents, mousedowns)
+//	mousedowns.forEach(el => document.removeEventListener('mousedown', el.callback))
+//	document.myEvents = document.myEvents.filter(el => el.event !== 'mousedown')
+//	const inputs = document.getElementsByTagName('input')
+//	console.log(inputs)
+    }
+
+    function onSetLocalization(e) {
+        const { detail: localization } = e;
+        DevExpress.localization.locale(localization);
+    }
+
+</script>
+</body>
+</html>

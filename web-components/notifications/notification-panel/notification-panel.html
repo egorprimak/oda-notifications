@@ -1,0 +1,219 @@
+<script src="/web/core/oda.js"></script>
+<script src="/web/lib/notifications/utils.js"></script>
+<script src="/web/lib/notifications/notify.js"></script>
+<script src="/web/lib/notifications/user.js"></script>
+<link rel="import" href="/web/lib/notifications/notification-service.html">
+<link rel="import" href="/web/lib/notifications/announcement/announcement-service.html">
+<link rel="import" href="/web/lib/notifications/notification-list/notification-list.html">
+<link rel="import" href="/web/lib/notifications/categories-panel/categories-panel.html">
+<link rel="import" href="/web/lib/form-loading-spinner/form-loading-spinner.html">
+<oda-module id="oda-notification-panel">
+    <template>
+        <style>
+            :host {
+                display: block;
+                height: 100%;
+                overflow-y: auto;
+            }
+
+            .notification-panel {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .notification-panel__header {
+                z-index: 1;
+                position: sticky;
+                top: 0;
+                background-color: #fff;
+            }
+
+            .empty-list {
+                font-size: 14px;
+                color: #828282;
+                text-align: center;
+                padding-top: 5px;
+            }
+
+            .spinner {
+                position: relative;
+                width: 100%;
+                height: 100%;
+            }
+        </style>
+        <div class="notification-panel" v-if="loaded">
+            <div class="notification-panel__header">
+                <oda-categories-panel
+                    ::selected-category.prop="selectedCategory"
+                    ::selected-is-read-category="selectedIsReadCategory"
+                    :categories.prop="categories"
+                    @read-all="readAll()"
+                ></oda-categories-panel>
+            </div>
+            <div v-if="notifyList.length">
+                <oda-notification-list
+                    :context-item.prop="contextItem"
+                    :notify-list.prop="notifyList"
+                ></oda-notification-list>
+            </div>
+            <div v-else class="empty-list">Список уведомлений пуст</div>
+        </div>
+        <div class="spinner" v-show="!loaded">
+            <form-loading-spinner></form-loading-spinner>
+        </div>
+    </template>
+    <script>
+        ODA({
+            is: 'oda-notification-panel',
+            extends: 'notification-service, announcement-service',
+            properties: {
+                contextItem: {
+                    type: Object,
+                    async watch(ctxItem) {
+                        if (!ctxItem) {
+                            return;
+                        }
+                        const odaUser = await this.getUserData();
+                        this.prepareUserData(odaUser);
+
+                        await this._subscribe();
+                    }
+                },
+                rightPanelOpened: {
+                    default: false,
+                    notify: true
+                },
+                notifyList: [],
+                objects: [],
+                unread: [],
+                loaded: false,
+                classes: Array,
+                user: Object,
+                categories: null,
+                selectedCategory: '',
+                selectedIsReadCategory: '',
+                firstLoad: true,
+                _classDataChangedHandler: Function
+            },
+            observers: [
+                function categoriesChanged(selectedCategory, selectedIsReadCategory) {
+                    if (!selectedCategory || !selectedIsReadCategory) {
+                        return;
+                    }
+                    this._allFilter(selectedCategory, selectedIsReadCategory);
+                    localStorage.setItem('_selectedNotifyCategory', selectedCategory);
+                    localStorage.setItem('_selectedIsReadCategory', selectedIsReadCategory);
+                },
+            ],
+            prepareUserData(odaUser) {
+                this.user = new User(odaUser.id, odaUser.name, odaUser?.access?.allowAdmin);
+            },
+            prepareObjectsToNotify(objects) {
+                return objects.map(i => Notify.create(i.user, i.cid, i.oid, i.email, i.subject, i.message, i.isRead, i.date, this.firstLoad));
+            },
+            createCategoriesMap() {
+                this.categories = new Map();
+                for (const cls of this.classes) {
+                    this.categories.set(cls.label, cls.id);
+                }
+            },
+            initFilter() {
+                const categoryFromLocalStorage = localStorage.getItem('_selectedNotifyCategory');
+                const isReadCategoryFromLocalStorage = localStorage.getItem('_selectedIsReadCategory');
+
+                this.selectedCategory = categoryFromLocalStorage || 'Все';
+                this.selectedIsReadCategory = isReadCategoryFromLocalStorage || 'notRead';
+
+                this._allFilter(this.selectedCategory, this.selectedIsReadCategory);
+            },
+            getUnreadList() {
+                return this.objects.filter(i => !i.isRead);
+            },
+            _deleteDublicates(oidList) {
+                if (!this.objects.length) {
+                    return;
+                }
+                this.objects = this.objects.filter(i => oidList.indexOf(i.oid) === -1);
+            },
+            _allFilter(category, isReadCategory) {
+                let list = isReadCategory === 'all' ? this.objects : this.unread;
+                this.notifyList = this._filterByCategory(list, category);
+            },
+            _filterByCategory(list, category) {
+                if (category === 'Все') {
+                    return list;
+                }
+                const cid = this.categories.get(category);
+                return list.filter(i => i.cid === cid);
+            },
+            _unsubscribe() {
+                this.contextItem.unlisten('changed', this._classDataChangedHandler);
+            },
+            _getCategoryNameByCid(cid) {
+                return Array.from(this.categories.entries()).find(([k, v]) => v === cid)?.[0] || 'Неизвестная категория';
+            },
+            _getQuery() {
+                const creationDate = this.dataLoadTime || '';
+                return `for $i in PACK/OBJECT order by $i/@date descending return if ($i/data(@email) = "${this.user.email}" and $i/data(@date) > "${creationDate}") then $i else null`;
+            },
+            async init() {
+                this.loaded = false;
+                this.classes = await this.getChildClasses();
+                this.createCategoriesMap();
+
+                const objects = await this.getObjects();
+                const preparedObjects = this.prepareObjectsToNotify(objects);
+                const newObjectsOidList = preparedObjects.map(i => i.oid);
+                this._deleteDublicates(newObjectsOidList);
+
+                this.objects = preparedObjects.concat(this.objects || []);
+                this.objects = this.objects.sort((a, b) => this._isReadSort(a, b));
+                this.unread = this.getUnreadList();
+
+                await this.addAnnouncements(preparedObjects);
+                this.dataLoadTime = await this._getServerCurrentDate();
+                this.initFilter();
+                await this._createAnnouncementListComponent();
+
+                this.loaded = true;
+                this.firstLoad = false;
+            },
+            async getUserData() {
+                return await this.contextItem.$connection.getUser();
+            },
+            async getObjects() {
+                if (!this.classes.length) {
+                    return [];
+                }
+
+                const index = await this.contextItem.getIndex('PACK');
+                const query = this._getQuery();
+                const objects = await index.XQuery(query);
+                return objects && objects.$OBJECT || [];
+            },
+            async addAnnouncements(notifyList) {
+                if (!this.dataLoadTime || this.rightPanelOpened) {
+                    return;
+                }
+                for (const notify of notifyList) {
+                    if (notify.isRead) {
+                        break;
+                    }
+                    const category = this._getCategoryNameByCid(notify.cid);
+                    this._addAnnouncement({notify, category});
+                }
+            },
+            async readAll() {
+                await this._markAsRead(this.notifyList);
+            },
+            async _subscribe() {
+                this._unsubscribe();
+                if (!this.contextItem) {
+                    return;
+                }
+                this._classDataChangedHandler = async () => await this.init();
+                this.contextItem.listen('changed', await this._classDataChangedHandler);
+            },
+        })
+    </script>
+</oda-module>

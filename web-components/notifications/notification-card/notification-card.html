@@ -1,0 +1,207 @@
+<script src="/web/core/oda.js"></script>
+<script src="/web/lib/notifications/utils.js"></script>
+<script src="/web/lib/notifications/notify.js"></script>
+<link rel="import" href="/web/lib/notifications/notification-service.html">
+<oda-module id="oda-notification-card">
+  <template>
+    <style>
+      :host {
+        display: block;
+        position: relative;
+      }
+
+      .notify {
+        border-bottom: 1px solid #ddd;;
+      }
+
+      .title {
+        font-size: 16px;
+        font-weight: 400;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+      }
+
+      .status {
+        background-color: transparent;
+        width: 8px;
+        height: 8px;
+        border-radius: 100%;
+        border: 1px solid #ddd;
+        padding: 0;
+        margin-right: 5px;
+      }
+
+      .status_unread {
+        cursor: pointer;
+        border: 0;
+        background-color: #2F80EDFF;
+      }
+
+      .message {
+        font-size: 13px;
+        margin-bottom: 10px;
+        padding-left: 25px;
+      }
+
+      .stub {
+        position: absolute;
+        top: 0;
+        left: 0;
+        background-color: #eee;
+        width: 100%;
+        height: 100%;
+        justify-content: center;
+        opacity: .6;
+      }
+
+      .flex {
+        display: flex;
+      }
+
+      .flex-shrink-0 {
+        flex-shrink: 0;
+      }
+
+      .align-items-start {
+        align-items: start;
+      }
+
+      .align-items-center {
+        align-items: center;
+      }
+
+      .justify-content-between {
+        justify-content: space-between;
+      }
+
+      .overflow-hidden {
+        overflow: hidden;
+      }
+
+      .px-10 {
+        padding-right: 10px;
+        padding-left: 10px;
+      }
+
+      .my-10 {
+        margin-top: 10px;
+        margin-bottom: 10px;
+      }
+
+      .text-secondary {
+        color: #828282;
+        font-size: 11px;
+      }
+
+      .text-align-right {
+        text-align: right;
+      }
+
+      .animation {
+        animation: 3s bgAttenuation ease-in-out;
+      }
+
+      @keyframes bgAttenuation {
+        from {
+            background-color: #FFE299FF;
+        }
+        to {
+            background-color: #fff;
+        }
+    }
+    </style>
+    <div :class="classAttribute" v-if="loaded && notify" @dblclick="showDetails()">
+      <div class="flex align-items-start justify-content-between overflow-hidden px-10">
+        <div class="flex align-items-center overflow-hidden">
+          <button
+            class="status flex-shrink-0"
+            :class="!notify.isRead ? 'status_unread' : ''"
+            @click="markAsRead(notify)"
+          ></button>
+          <h5 class="title">{{notify?.subject || 'Без темы'}}</h5>
+        </div>
+        <div class="text-secondary text-align-right my-10" v-if="needDate">
+          <div>{{notifyDate}}</div>
+          <div v-if="needTime">{{notifyTime}}</div>
+        </div>
+      </div>
+      <div class="message">{{messagePreview}}</div>
+    </div>
+  </template>
+  <script>
+    ODA({
+      is: 'oda-notification-card',
+      extends: 'notification-service',
+      properties: {
+        contextItem: Object,
+        notify: {
+          type: Object,
+          watch(o) {
+            if (!o) {
+              return;
+            }
+            this.init();
+            this.loaded = true;
+          }
+        },
+        needDate: true,
+        needTime: true,
+        loaded: false,
+        messagePreview: '',
+        classAttribute: '',
+        notifyDate: String,
+        notifyTime: String
+      },
+      init() {
+        this._prepareMessagePreview();
+        this._prepareNotifyDate();
+        this._setClassAttribute();
+        this._deleteAnimationClass();
+
+      },
+      async markAsRead(notify) {
+        if (notify.isRead) {
+          return;
+        }
+        await this._markAsRead([notify]);
+      },
+      async showDetails() {
+        await this._createAndShowDetailsModal(this.notify);
+      },
+      _setClassAttribute() {
+        this.classAttribute = 'notify';
+        if (this.notify.needAnimation) {
+          this.classAttribute += ' animation';
+        }
+      },
+      _deleteAnimationClass() {
+        if (!this.notify.needAnimation) {
+          return;
+        }
+        setTimeout(() => {
+          this.notify.needAnimation = false;
+          this.classAttribute = 'notify';
+        }, 3000);
+      },
+      _prepareMessagePreview() {
+        this.messagePreview = this._getMessagePreview(this.notify.message);
+      },
+      _prepareNotifyDate() {
+        if (!this.notify.creationDate) {
+          this.needDate = false;
+          return;
+        }
+
+        const dateTimeObject = this._prepareDateTime(this.notify.creationDate);
+        this.notifyDate = dateTimeObject.date;
+        this.notifyTime = dateTimeObject.time;
+
+        if (!this.notifyTime) {
+          this.needTime = false;
+          return;
+        } 
+      },
+    })
+  </script>
+</oda-module>

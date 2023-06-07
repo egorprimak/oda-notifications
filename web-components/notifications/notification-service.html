@@ -1,0 +1,109 @@
+<script src="/web/core/oda.js"></script>
+<script src="/web/lib/notifications/notify.js"></script>
+<script src="/web/lib/notifications/date-formatter.js"></script>
+<oda-module id="notification-service">
+    <script>
+        ODA({
+            is: 'notification-service',
+            properties: {
+                contextItem: Object,
+                dataLoadTime: '',
+                previewSize: 300,
+                DETAIL_COMPONENT_PATH: '/web/lib/notifications/notification-detail/notification-detail.html',
+            },
+            getDefaultSubject() {
+                return 'Без темы';
+            },
+            getDefaultMessage() {
+                return 'Пустое сообщение';
+            },
+            _isReadSort(a, b) {
+                return a.isRead < b.isRead ? -1 : a.isRead > b.isRead ? 1 : 0;
+            },
+            _getMessagePreview(message) {
+                if (!message) {
+                    return this.getDefaultMessage();
+                }
+                let messagePreview = this._stripHTML(message).slice(0, this.previewSize);
+                if (message.length > this.previewSize) {
+                    messagePreview += '...';
+                }
+                return messagePreview;
+            },
+            _stripHTML(value) {
+                return value.replace(/<.*?>/g, '');
+            },
+            _prepareDateTime(ISODateTime) {
+                const dateFormatter = new ISODateFormatter(ISODateTime);
+                return dateFormatter.getDateTimeObject();
+            },
+            async getChildClasses() {
+                const classes = await this.contextItem.$classes;
+                return classes || [];
+            },
+            async _getObjectByOneClass(cls) {
+                const objects = await cls.$objects;
+                return objects && objects.length && objects || [];
+            },
+            async _getClassById(id) {
+                return await this.contextItem.findItem('C:' + id);
+            },
+            async _getServerCurrentDate() {
+                const index = await this.contextItem.getIndex('PACK');
+                const date = await index.XQuery('current-dateTime()');
+                return date && date[0] || '';
+            },
+            async _createAndShowDetailsModal(notify) {
+                if (!notify) {
+                    return;
+                }
+
+                const dateTimeObject = this._prepareDateTime(notify.creationDate);
+                const detailsProps = {
+                    message: notify.message || this.getDefaultMessage(),
+                    subject: notify.subject || this.getDefaultSubject(),
+                    date: dateTimeObject.date,
+                    time: dateTimeObject.time
+                };
+
+                const control = await ODA.createComponent(this.DETAIL_COMPONENT_PATH, detailsProps);
+                control.style.minWidth = '60vw';
+                control.style.minHeight = '70vh';
+
+                ODA.showDialog(control, {
+                    title: 'Уведомление',
+                    ok: {show: false},
+                    buttons: !notify.isRead ? [
+                        {
+                            right: true,
+                            label: 'Пометить как прочитанное',
+                            style: {
+                                backgroundColor: '#2F80EDFF',
+                                color: '#fff'
+                            },
+                        }
+                    ] : []
+                }).then(async () => {
+                    await this._markAsRead([notify]);
+                });
+            },
+            async _markAsRead(list) {
+                const unread = list.filter(i => !i.isRead);
+                if (!unread.length) {
+                    return;
+                }
+
+                for (const notify of unread) {
+                    notify.isRead = true;
+                }
+
+                const odaUnread = unread.map(Notify.toDto);
+                await this._save(this.contextItem, odaUnread);
+            },
+            async _save(cls, data) {
+                const wraped = JSON.stringify({$OBJECTS: [{$OBJECT: data}]});
+                await cls.API.POST('save_objects', undefined, wraped);
+            },
+        })
+    </script>
+</oda-module>

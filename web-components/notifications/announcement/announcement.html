@@ -1,0 +1,100 @@
+<script src="/web/core/oda.js"></script>
+<link rel="import" href="/web/lib/notifications/announcement/announcement-service.html">
+<link rel="import" href="/web/lib/notifications/notification-service.html">
+<oda-module id="oda-announcement">
+    <template>
+        <style>
+            :host {
+                display: block;
+                width: 100%;
+            }
+
+            .announcement {
+                position: relative;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                background-color: #fff;
+                padding: 20px 30px;
+                box-shadow: 0 0 7px 0 #ccc;
+                color: #000;
+                font-size: 14px;
+                margin-bottom: 10px;
+                /* animation: .5s showAnnouncement ease-in-out; */
+            }
+
+            .announcement .announcement__type {
+                color: #555;
+                font-size: 12px;
+                margin-bottom: 10px;
+            }
+
+            .announcement .close-btn {
+                cursor: pointer;
+                padding: 5px 9px;
+                border-radius: 100%;
+                background-color: rgba(0, 0, 0, .1);
+            }
+
+            .announcement .close-btn:hover {
+                background-color: rgba(49, 49, 49, 0.1);
+            }
+
+            /* .slide-enter-active {
+                animation: .5s showAnnouncement ease-in-out;
+            }
+
+            .slide-leave-active {
+                animation: .5s showAnnouncement reverse;
+            } */
+
+            @keyframes showAnnouncement {
+                from {
+                    opacity: 0;
+                    transform: translate(150%, 0);
+                }
+                to {
+                    opacity: 1;
+                    transform: translate(0, 0);
+                }
+            }
+        </style>
+        <div class="announcement" v-if="loaded" @dblClick="showDetails()">
+            <div class="announcement__info">
+                <div class="announcement__type">({{category}})</div>
+                <div class="announcement__subject">{{notify.subject || 'Без темы'}}</div>
+            </div>
+            <div class="close-btn" @click="close()">X</div>
+        </div>
+    </template>
+    <script>
+        ODA({
+            is: 'oda-announcement',
+            extends: 'announcement-service, notification-service',
+            properties: {
+                contextItem: Object,
+                notify: {
+                    type: Object,
+                    watch(o) {
+                        if (!o) {
+                            return;
+                        }
+                        this.loaded = true;
+                        this._closeByTimer();
+                    }
+                },
+                loaded: false,
+                category: String,
+            },
+            close() {
+                this.fire('close', this.notify.oid);
+            },
+            _closeByTimer() {
+                setTimeout(() => this.close(), 10000);
+            },
+            async showDetails() {
+                await this._createAndShowDetailsModal(this.notify);
+            }
+        })
+    </script>
+</oda-module>

@@ -1,0 +1,80 @@
+<script src="/web/core/oda.js"></script>
+<link rel="import" href="/web/core/styles.html">
+<link rel="import" href="/web/lib/devextreme/devextreme.html">
+
+
+<oda-module id="oda-devextreme-test">
+    <template>
+        <oda-devextreme component="ui.dxPivotGrid"></oda-devextreme>
+        <oda-devextreme component="ui.dxList" :options.prop="listOptions"
+                        ::instance.prop="listInstance"></oda-devextreme>
+        <oda-devextreme component="ui.dxButton"
+                        :options.prop="btnOptions"
+                        ::instance.prop="btnInstance"
+                        :events-handlers.prop="btnHandlers"
+                        :events-context.prop="this"
+        ></oda-devextreme>
+    </template>
+    <script>
+        ODA({
+            is: 'oda-devextreme-test',
+            properties: {
+                listOptions: {
+                    type: Object,
+                    default: () => ({
+                        selectionMode: 'none',
+                        focusStateEnabled: false,
+                    }),
+                },
+                listInstance: Object,
+                btnOptions: {
+                    type: Object,
+                    default: () => ({
+                        text: 'Add new item',
+                    }),
+                },
+                btnInstance: {
+                    type: Object,
+                    watch(instance) {
+                        if (!instance) return;
+                        console.log('btn instance', instance);
+                        instance.on('click', () => {
+
+                        });
+                    },
+                },
+                btnHandlers: {
+                    type: Object,
+                    default: () => ({
+                        click: [
+                            (self) => { // ***
+                                const dataSource = self.listInstance.getDataSource();
+                                const items = dataSource ? dataSource.items() : [];
+                                items.push('New item 1');
+                                self.listInstance.option('dataSource', items);
+                            },
+                            (self) => {
+                                const dataSource = self.listInstance.getDataSource();
+                                const items = dataSource ? dataSource.items() : [];
+                                items.push('New item 2');
+                                self.listInstance.option('dataSource', items);
+                            },
+                        ],
+                    }),
+                },
+            },
+            ready() {
+                this.async(() => {
+                    this.btnHandlers = {
+                        click(self) {
+                            const dataSource = self.listInstance.getDataSource();
+                            const items = dataSource ? dataSource.items() : [];
+                            items.push('New item 3');
+                            self.listInstance.option('dataSource', items);
+                        },
+                    };
+                }, 5000);
+            },
+        });
+    </script>
+</oda-module>
